@@ -1,0 +1,8 @@
+
+function importEDF(fname,abdata) {
+  signalbase.append=false;
+  signalbase.loadEDFData(fname,abdata);
+}
+
+addImporter(["Generic EDF..", importEDF, ".edf"]);
+

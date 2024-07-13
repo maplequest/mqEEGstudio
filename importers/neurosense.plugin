@@ -1,0 +1,8 @@
+
+function importNeurosenseEDF(fname,abdata) {
+  signalbase.append=false;
+  signalbase.loadEDFData(fname,abdata);
+}
+
+addImporter(["NeuroSense EDF..", importNeurosenseEDF, ".edf"]);
+

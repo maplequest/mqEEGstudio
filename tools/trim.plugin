@@ -1,0 +1,30 @@
+
+addTool(['Trim View',
+  function () {
+    var t1 = signalbase.zoomBegin;
+    var t2 = signalbase.zoomEnd;
+    signalbase.trim(t1,t2);
+    return true;
+  }
+]);
+
+addTool(['Trim Edges',
+  function () {
+    var thres = 20;
+    var chs = [signalbase.curChannel,signalbase.curChannelB];
+    var fs = Math.floor(signalbase.data.srates[chs[0]]);
+   // filterEEGFast(function (fs) { return new mqDCBlock( { fs: fs, fc: 0.1 }); });
+    var eeg1 = signalbase.data.signals[chs[0]].map(x=>(mqNaN(x)?0:x));
+    var eeg2 = signalbase.data.signals[chs[1]].map(x=>(mqNaN(x)?0:x));
+    var t1 = 0;
+    while (Math.abs(eeg1[t1])<thres) t1++;
+    t1/=fs;
+    var t2 = eeg1.length-1;
+    while (Math.abs(eeg1[t2])<thres) t2--;
+    t2/=fs;
+    signalbase.trim(t1,t2);
+    return true;
+  }
+]);
+
+

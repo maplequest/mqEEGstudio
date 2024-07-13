@@ -1,0 +1,34 @@
+
+addFilter(['Notch 60Hz..',
+  function () {
+    var backup = JSON.stringify(signalbase.data);
+    var wnd = mqWindow({ id: 'notch-60', title: '60Hz Notch Filter', width: '264', height: '96px', });
+    mqAppend(wnd,mqLabel({ x: '8px', y: '32px', label: 'Quality Factor', align: 'right'}));
+    mqAppend(wnd,mqInput({
+      id: 'notch-60-q',
+      x: '136px', y: '32px', value: '7'
+    }));
+    mqAppend(wnd,mqButton({
+      id: 'notch-60-apply',
+      x: '136', y: '64px', label: 'Apply',
+      onclick: function () {
+         var q = parseFloat(mqGet('notch-60-q','innerText'));
+         if (q!=null&&!isNaN(q))  {
+           filterEEGFast(function (fs) { 
+              return new mqBiquad( { fs: fs, fc: 60, q: q, type: 'notch' }); 
+           });
+           refreshPlots();
+         }
+      }
+    }));
+    mqAppend(wnd,mqButton({
+      id: 'notch-60-reset',
+      x: '8px', y: '65px', label: 'Reset',
+      onclick: function () { 
+        signalbase.data = JSON.parse(backup);
+        refreshPlots();
+      }
+    }));
+  }
+]);
+

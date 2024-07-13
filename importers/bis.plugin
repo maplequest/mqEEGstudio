@@ -1,0 +1,165 @@
+
+class bisDC {
+  constructor (fs, fc) {
+    this.b = 2 * Math.PI * fc / fs;
+    this.a = 1 - this.b/2.0;
+    this.x_1 = 0;
+    this.y_1 = 0;
+  }
+  step (x) {
+    var y = this.a*x-this.a*this.x_1+(1-this.b)*this.y_1;
+    this.y_1=y;
+    this.x_1=x;
+    return y;
+  }
+}
+
+class bisNotch {
+  constructor(fs,fc) {
+    var q = 1.4;
+    var w0 = 2*Math.PI*fc/fs;
+    var alpha = Math.sin(w0)/(2.0*q);
+    var a0 = 1+ alpha;
+    this.b0 = 1 / a0;
+    this.b1 = (-2*Math.cos(w0)) / a0;
+    this.b2 = 1 / a0;
+    this.a1 = (-2*Math.cos(w0)) / a0;
+    this.a2 = (1-alpha) / a0;
+    this.x_2 = 0;
+    this.x_1 = 0;
+    this.y_2 = 0;
+    this.y_1 = 0;
+  }
+  step(x) {
+    var y = this.b0*x+this.b1*this.x_1+this.b2*this.x_2-this.a1*this.y_1-this.a2*this.y_2;
+    this.x_2 = this.x_1;
+    this.x_1 = x;
+    this.y_2 = this.y_1;
+    this.y_1 = y;
+    return y;
+  }
+}
+
+function keepBISTrend(name,pf) {
+  var keepers = [["SR12_Ch1", "SR"], 
+                 ["SEF08_Ch1", "SEF"], 
+                 ["MEDFRQ08_Ch1", "MF"],
+                 ["DB13U01_Ch1", "BIS"],
+                 ["EMGLOW01_Ch1", "EMG"]];
+  var label=name.trim()+'_'+pf.replace(/ /g,'');
+  var res = null;
+  for (var i=0;i<keepers.length;i++) {
+    if (keepers[i][0]==label) res=keepers[i][1];
+  }
+  return res;
+}
+
+function importBISspa(fname,abdata) {
+  var data=mqArrayBufferToString(abdata);
+  var adata = data.split('\n').map(function (a) { return a.split('|'); });
+  var postfixes=adata[0];
+  var labels=adata[1];
+  var duration = adata.length-2;
+  var len = labels.length;
+  var i=3;
+  var pf="";
+  signalbase.clear();
+  signalbase.curChannel=0;
+  signalbase.curChannelB=1;
+  signalbase.data.filename=fname;
+  signalbase.data.starttime=adata[3][0].split(' ')[1].replace(/:/g,'.');
+  //signalbase.data.startdate=adata[3][0].split(' ')[0].replace(/\//g,'.');
+  signalbase.data.startdate='01.01.01';
+  signalbase.data.srates=[128,128];
+  signalbase.data.labels=["EEG1","EEG2"];
+  signalbase.data.dims=["uV","uV"];
+  signalbase.data.bits=[12,12];
+  signalbase.data.resolution=[0.05,0.05];
+  signalbase.data.signals.push(new Array(128*duration).fill(0));
+  signalbase.data.signals.push(new Array(128*duration).fill(0));
+  signalbase.zoomBegin=0;
+  signalbase.zoomEnd=duration;
+  while (i<len) {
+    if (postfixes[i].trim()!='') pf=postfixes[i];
+    if (pf!='') {
+      var label = keepBISTrend(labels[i],pf);
+      if (label) {
+        signalbase.create(label,1);
+        for (var j=0;j<duration;j++) {
+          var val = parseFloat(adata[j+2][i]);
+          if (!isNaN(val)) signalbase.setvalue(label,j,(val<0?0:val));
+        }
+      }
+    }
+    i++;
+  }
+}
+
+function importBISr2a(fname,abdata) {
+  var v = new Int16Array(abdata);
+  if (signalbase.data.signals.length<2) {
+    console.log('Signal mismatch - did you import the .spa first?');
+    return;
+  }
+  var len = v.length;
+  var stride = 0;
+  var len2 = signalbase.data.signals[0].length;
+  if (Math.abs(len/2-len2)/len2<0.01) {
+    stride = 2;
+  } else if (Math.abs(len/4-len2)/len2<0.01) {
+    stride = 4;
+  }
+  if (stride==0) { 
+    console.log('Unexpected data length - did you import the .spa first?');
+    return;
+  }
+  if (stride==4) {
+    var dur = signalbase.duration();
+    signalbase.data.srates.unshift(128);
+    signalbase.data.srates.unshift(128);
+    signalbase.data.labels.unshift('EEG2');
+    signalbase.data.labels.unshift('EEG1');
+    signalbase.data.labels[2]='EEG3';
+    signalbase.data.labels[3]='EEG4';
+    signalbase.data.dims.unshift('uV');
+    signalbase.data.dims.unshift('uV');
+    signalbase.data.bits.unshift(12);
+    signalbase.data.bits.unshift(12);
+    signalbase.data.resolution.unshift(0.05);
+    signalbase.data.resolution.unshift(0.05);
+    signalbase.data.signals.unshift(new Array(128*dur).fill(0));
+    signalbase.data.signals.unshift(new Array(128*dur).fill(0));
+  }
+  for (var k=0;k<stride;k++) {
+    var fs = 128;
+    var iir = new Fili.CalcCascades();
+    var coefs = new iir.bandpass( {
+      characteristic: 'butterworth',
+      order: 8,
+      Fs: fs,
+      Fc: 15.5,
+      BW: 30,
+      gain: 0,
+      preGain: false
+    });
+    var bp = new Fili.IirFilter(coefs);
+    var notch50 = new bisNotch(fs,50);
+    var notch60 = new bisNotch(fs,60);
+    var dc = new bisDC(fs,1);
+    for (var i=0;i<Math.floor(len/stride);i+=1) {
+      var a = 0.05*v[stride*i+k];
+      if (i<len2&&!isNaN(a)) {
+       // var af = notch60.step(notch50.step(bp.singleStep(dc.step(a))));
+        af = a;
+        if (mqNaN(af)) af=0;
+        signalbase.data.signals[k][i]=af;
+      }
+    }
+  }
+  signalbase.onafterload();
+  refreshPlots();
+}
+
+addImporter(["BIS spa (step 1)..", importBISspa, ".spa"]);
+addImporter(["BIS r2a/r4a (step 2)..", importBISr2a, ".r2a, .r4a"]);
+  

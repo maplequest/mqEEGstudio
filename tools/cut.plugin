@@ -1,0 +1,175 @@
+
+addTool(['Cut View',
+  function () {
+    var t1 = signalbase.zoomBegin;
+    var t2 = signalbase.zoomEnd;
+    signalbase.cut(t1,t2);
+    return true;
+  }
+]);
+
+function genParamDialog(cfg) {
+  var w = 264;
+  var h = 32*cfg.params.length + 2*32;
+  var wnd = mqWindow({ id: cfg.id, title: cfg.title, width: w+'px', height: h+'px' });
+  var y = 32;
+  for (var i=0;i<cfg.params.length;i++) {
+     var param = cfg.params[i];
+     mqAppend(wnd,mqLabel({ x: '8px', y: y+'px', label: param.label, align: 'right'}));
+     mqAppend(wnd,mqInput({ id: param.id, x: '136px', y: y+'px', value: param.value }));
+     y+=32;
+  }
+  mqAppend(wnd,mqButton({
+      id: cfg.id+'-apply',
+      x: '136', y: y+'px', label: 'Apply',
+      onclick: cfg.onapply
+  }));
+  mqAppend(wnd,mqButton({
+      id: cfg.id+'-reset',
+      x: '8px', y: y+'px', label: 'Reset',
+      onclick: cfg.onreset
+  }));
+}
+
+function cutArtifacts (thres,pad) {
+   var chs = [signalbase.curChannel,signalbase.curChannelB];
+   var fs = Math.floor(signalbase.data.srates[chs[0]]);
+   filterEEGFast(function (fs) { return new mqDCBlock( { fs: fs, fc: 0.1 }); });
+   var eeg1 = signalbase.data.signals[chs[0]].map(x=>(mqNaN(x)?0:x));
+   var eeg2 = signalbase.data.signals[chs[1]].map(x=>(mqNaN(x)?0:x));
+   var cuts = [];
+   for (var i=0;i<eeg1.length;i++) { 
+     if (Math.abs(eeg1[i])>thres||Math.abs(eeg2[i])>thres) {
+       if (cuts.length==0||i-cuts[cuts.length-1]>pad*fs) cuts.push(i);
+     }
+   }
+   cuts=cuts.reverse();
+   for (var i=0;i<cuts.length;i++) {
+     var cut = cuts[i]/fs;
+     var bgn = Math.max(0,cut-pad);
+     var end = Math.min(eeg1.length/fs,cut+pad);
+     signalbase.cut(bgn,end);
+   }
+}
+
+addTool([ 'Cut Artifacts..',
+  function () {
+    var id = 'art-cutter';
+    if (mqElement(id)) return; 
+    var backup = JSON.stringify(signalbase.data);
+    genParamDialog({
+      id: id,
+      title: 'Cut Artifacts',
+      params: [
+         { label: "Threshold [uV]", id: id+"-threshold", value: "500" },
+         { label: "Padding [s]", id: id+"-pad", value: "10" }
+      ],
+      onreset: function () { signalbase.data = JSON.parse(backup); refreshPlots(); },
+      onapply: function () {
+        var thres = parseFloat(mqGet(id+'-threshold','innerText'));
+        var pad = parseFloat(mqGet(id+'-pad','innerText'));
+        if (!mqNaN(thres)&&!mqNaN(pad)) { 
+          cutArtifacts(thres,pad);
+          refreshPlots();
+        }
+      }
+    });
+  }
+]);
+
+
+function thresholdCutter(trnd,dir,thres,pad) {
+  // step 1 : find the artifact trends
+  var art;
+  var trends = signalbase.trendChannels();
+  for (var i=0;i<trends.length;i++) {
+    if (signalbase.data.labels[trends[i]]==trnd) art = trends[i];
+  }
+  if (mqNaN(art)) return;
+  // step 2: do the cuts
+  var again = true;
+  while (again) {
+    again=false;
+    var sig = signalbase.data.signals[art];
+    if (signalbase.duration()<1) return; 
+    for (var i=0;i<sig.length;i++) {
+      if ((dir=='above'&&sig[i]>thres)||(dir=='below'&&sig[i]<thres)) {
+        var bgn = Math.max(0,i-pad);
+        var end = Math.min(sig.length,i+pad);
+        signalbase.cut(bgn,end);
+        again=true;
+        break;
+      }
+    }
+  }
+}
+
+var thresholdDirection='above';
+var thresholdCutterTrend = null;
+
+function thresholdCutterUI () {
+  var id = 'threshold-cutter';
+  if (mqElement(id)) return;
+  thresholdDirection='above';
+  var backup = JSON.stringify(signalbase.data);
+  var wnd = mqWindow({
+    id: id, title: 'Threshold Cutter',
+    width: '480px', height: '160px',
+   });
+  var trends = signalbase.trendChannels().map(x=>signalbase.data.labels[x]).sort(function(a,b) {
+    return a[0].toLowerCase().localeCompare(b[0].toLowerCase());
+  }); 
+  mqAppend(wnd,mqList({
+    x: '8px', y: '32px', width: '208px', height: '120px' ,
+    entries: trends,
+    selected: null,
+    onclick: function (lbl) { thresholdCutterTrend = lbl; }
+  }));
+  mqAppend(wnd,mqLabel({ x: '224px', y: '32px', label: 'Cut Threshold', align: 'right'}));
+  mqAppend(wnd,mqInput({ id: id+'-threshold', x: '352px', y: '32px', value: '50' }));
+  mqAppend(wnd,mqLabel({ x: '224px', y: '64px', label: 'Cut Padding [s]', align: 'right'}));
+  mqAppend(wnd,mqInput({ id: id+'-pad', x: '352px', y: '64px', value: '5' }));
+  mqAppend(wnd,mqRadioBox({
+    id: id+'-above',
+    x: '232px', y: '96px', label: 'Cut Above',
+    group: id+"-group", checked: true,
+    onclick: function () { thresholdDirection='above;' }
+  }));
+  mqAppend(wnd,mqRadioBox({
+    id: id+'-below',
+    x: '362px', y: '96px', label: 'Cut Below',
+    group: id+"-group",
+    onclick: function () { thresholdDirection='below'; }
+  }));
+  mqAppend(wnd,mqButton({
+      id: id+'-apply',
+      x: '352px', y: '128px', label: 'Apply',
+      onclick: function () {
+        if (thresholdCutterTrend!=null) {
+          var thres = parseFloat(mqGet(id+'-threshold','innerText'));
+          var pad = parseFloat(mqGet(id+'-pad','innerText'));
+          if (!mqNaN(thres)&&!mqNaN(pad)) {
+            thresholdCutter(thresholdCutterTrend,thresholdDirection,thres,pad);
+            refreshPlots();
+          }
+        }
+      }
+  }));
+  mqAppend(wnd,mqButton({
+      id: id+'-reset',
+      x: '224px', y: '128px', label: 'Reset',
+      onclick: function () { 
+        signalbase.data = JSON.parse(backup); 
+        signalbase.zoomBegin = 0;
+        signalbase.zoomEnd = signalbase.duration();
+        refreshPlots(); 
+      }
+  }));
+}
+
+addTool([ 'Cut Trend Threshold..',
+  function () {
+    thresholdCutterUI();
+  }
+]);
+

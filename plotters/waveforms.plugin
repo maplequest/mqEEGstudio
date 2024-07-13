@@ -1,0 +1,171 @@
+// --------------------
+// waveforms
+
+function activeWaveforms () {
+  var chs = [];
+  var chnames = [];
+  var entries = desktop.menubar.getSubmenus('mb-waveforms');
+  for (var i=2;i<entries.length;i++) {
+    if (entries[i][2]) chnames.push(entries[i][0]);
+  }
+  var tmp = signalbase.waveformChannels();
+  for (var i=0;i<tmp.length;i++) {
+    var name = signalbase.data.labels[tmp[i]];
+    if (chnames.includes(name)) chs.push(tmp[i]);
+  }
+  return chs;
+}
+
+function buildWaveform (ch,nx) {
+  var res = [];
+  var fs = signalbase.data.srates[ch];
+  var xmin = Math.floor(fs*signalbase.zoomBegin);
+  var xmax = Math.floor(fs*signalbase.zoomEnd);
+  var ys = signalbase.data.signals[ch].slice(xmin,xmax);
+  var dx = ys.length/nx;
+  var ymin = -100.0;
+  var ymax = 100.0;
+  var cnt = 0;
+  var ymin0 = ys[0];
+  var ymax0 = ys[0];
+  for (var i=0;i<ys.length;i++) {
+    var x = i;
+    var y = ys[i];
+    if (mqNaN(y)) continue;
+    if (y<ymin0) ymin0=y;
+    if (y>ymax0) ymax0=y;
+    if (cnt++>dx) { 
+      res.push([x,ymin0]);
+      if (ymin0!=ymax0) res.push([x,ymax0]);
+      ymin0=y; ymax0=y;
+      cnt = 0;
+    }
+  }
+  return [0,xmax-xmin,ymin,ymax,res];
+}
+
+function SVGRenderWaveforms (plt) {
+  var xrange = plt.pxmax - plt.pxmin;
+  if (mqNaN(xrange)||xrange<100) return;
+  var yrange = plt.pymax - plt.pymin;
+  if (mqNaN(yrange)||yrange<10) return;
+  var xmin, xmax, ymin, ymax, xys;
+  var chs = activeWaveforms();
+  var deltay = (plt.pymax-plt.pymin)/(chs.length+1);
+  var yofs = -deltay*(chs.length-1)/2.0;
+  for (var j=0;j<chs.length;j++) {
+    [xmin,xmax,ymin,ymax,xys]=buildWaveform(chs[j],plt.pxmax-plt.pxmin);
+    var pts=[];
+    for (var i=0;i<xys.length;i++) {
+      var xi = xys[i][0];
+      var yi = xys[i][1]/(chs.length+1);
+      var x = plt.pxmin+(plt.pxmax - plt.pxmin)*((xi-xmin)/(xmax-xmin));
+      var y = plt.pymax-(plt.pymax - plt.pymin)*((yi-ymin)/(ymax-ymin));
+      y+=yofs;
+      if (y>plt.pymax) y=plt.pymax;
+      if (y<plt.pymin) y=plt.pymin;
+      pts.push([x,y]);
+    }
+    plt.draw.polyline(pts).fill('none').stroke(plt.linestyle[j%10]);
+    yofs+=deltay;
+  }
+  yofs = -deltay*(chs.length-1)/2.0;
+  for (var j=0;j<chs.length;j++) {
+    plt.draw.text(signalbase.data.labels[chs[j]]).font('size',12).move(plt.pxmin+5,0.5*(plt.pymax+plt.pymin)+yofs-10).stroke({color: '#ffffff', width: 4});
+    plt.draw.text(signalbase.data.labels[chs[j]]).font('size',12).move(plt.pxmin+5,0.5*(plt.pymax+plt.pymin)+yofs-10);
+    yofs+=deltay;
+  }
+}
+
+function waveformsLabel (plt) {
+  return "Waveforms";
+}
+
+// find trend at pointer
+function waveformHoverSnap() {
+  var chs = activeTrends();
+  var plt = hoverPlot;
+  var rge = plt.ymax-plt.ymin;
+  var val = plt.ymin + hoverAtValue*rge;
+  var res = null;
+  var mindist = null;
+  for (var i=0;i<chs.length;i++) {
+    var lbl = signalbase.data.labels[chs[i]];
+    var fs = signalbase.data.srates[chs[i]];
+    var ofs = Math.round(hoverAt*fs);
+    var val2 = signalbase.data.signals[chs[i]][ofs];
+    var dist = Math.abs(val-val2)/rge;
+    if (mindist==null||dist<mindist) {
+      res = [lbl, hoverPlot.hhmmss(hoverAt),val2.toFixed(2),hoverPlot.linestyle[i%10].color];
+      mindist = dist;
+    }
+  }
+  return res;
+}
+
+function waveformsHoverChannel() {
+  var res = null;
+  var chs = activeWaveforms();
+  if (chs.length>0&&!mqNaN(hoverAtValue)) {
+    res = chs[Math.floor(chs.length*(1-hoverAtValue))];
+  }
+  return res;
+}
+
+function waveformsSnippet(ch) {
+  var xsane = hoverAt;
+  if (Array.isArray(xsane)) xsane=xsane[0];
+  var dur = signalbase.duration();
+  if (dur==0) return [];
+  var ofs = xsane-2.5;
+  if (ofs<0) ofs=0;
+  if (ofs>dur-5.0) ofs=dur-5.0;
+  var fs = signalbase.data.srates[ch];
+  return signalbase.chunk(ch,Math.floor(ofs*fs),Math.floor(5.0*fs));
+}
+
+function waveformsHover() {
+  var xmax = hoverW;
+  var ymax = hoverH;
+  var v = 0;
+  hoverCtx.fillStyle = '#333';
+  hoverCtx.strokeStyle = '#ffffff';
+  hoverCtx.fillRect(0, 0, hoverW, hoverH);
+  var ch = waveformsHoverChannel();
+  if (!mqNaN(ch)) {
+    var data = waveformsSnippet(ch);
+    var dx = xmax / data.length;
+    var scale = -0.2;
+    v = scale * data[0] + hoverH/2.0;
+    hoverCtx.beginPath();
+    hoverCtx.moveTo(0, clamp(v, 0, ymax));
+    var _js1 = data.length;
+    for (var i = 1; i < _js1; i += 1) {
+      v = scale * data[i] + hoverH/2.0;
+      hoverCtx.lineTo(i * dx, clamp(v, 0, ymax));
+    }
+    hoverCtx.stroke();
+    var fs = signalbase.data.srates[ch];
+    var ofs = Math.round(hoverAt*fs);
+    var val = signalbase.data.signals[ch][ofs]||0;
+    var str1 = hoverPlot.hhmmss(hoverAt);
+    var str2 = val.toFixed(2) + 'uV';
+    hoverCtx.font = '12px mqDefault';
+    hoverCtx.fillStyle = '#fff';
+    hoverCtx.textAlign= 'center';
+    hoverCtx.textBaseline= 'middle';
+    hoverCtx.fillText(str2,hoverW/2,0.15*hoverH);
+    hoverCtx.fillText(str1,hoverW/2,0.9*hoverH);
+  }
+}
+
+addPlotter({
+  id: 'plotter-waveforms',
+  mode: 'waveforms',
+  label: 'Waveforms',
+  default: true,
+  render: SVGRenderWaveforms,
+  renderLabel: waveformsLabel,
+  renderHover: waveformsHover
+});
+

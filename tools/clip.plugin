@@ -1,0 +1,17 @@
+
+addTool(['Clip Negative Trends',
+  function () {
+    var chs = signalbase.trendChannels();
+    for (var i=0;i<chs.length;i++) {
+      var len = signalbase.data.signals[chs[i]].length;
+      for (var j=0;j<len;j++) {
+        var val = signalbase.data.signals[chs[i]][j];
+        if (val<0) { 
+          signalbase.data.signals[chs[i]][j]=0;
+        }
+      }
+    }
+    return true;
+  }
+]);
+

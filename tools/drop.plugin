@@ -1,0 +1,15 @@
+
+addTool(['Drop Hidden Trends',
+  function () {
+    var drop = [];
+    var es = desktop.menubar.getSubmenus('mb-trends');
+    var newes = [es[0],es[1]];
+    for (var i=2;i<es.length;i++)
+      if (es[i][2]) newes.push(es[i]); else drop.push(es[i][0]); 
+    for (var i=0;i<drop.length;i++) 
+      signalbase.deleteSignal(drop[i],true);
+    desktop.menubar.setSubmenus('mb-trends',newes);
+    console.log(drop.length + ' trends removed');
+  }
+]);
+

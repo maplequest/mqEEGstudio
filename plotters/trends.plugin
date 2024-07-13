@@ -1,0 +1,126 @@
+// --------------------
+// Trends
+
+function activeTrends() {
+  var chs = [];
+  var chnames = [];
+  var entries = desktop.menubar.getSubmenus('mb-trends');
+  for (var i=2;i<entries.length;i++) {
+    if (entries[i][2]) chnames.push(entries[i][0]);
+  }
+  var tmp = signalbase.trendChannels();
+  for (var i=0;i<tmp.length;i++) {
+    var name = signalbase.data.labels[tmp[i]];
+    if (chnames.includes(name)) chs.push(tmp[i]);
+  }
+  return chs;
+}
+
+function SVGRenderTrends (plt) {
+  var xrange = plt.pxmax - plt.pxmin;
+  if (mqNaN(xrange)||xrange<100) return;
+  var yrange = plt.pymax - plt.pymin;
+  if (mqNaN(yrange)||yrange<10) return;
+  ys=[];
+  var xmin=signalbase.zoomBegin;
+  var xmax=signalbase.zoomEnd;
+  var ymin=null;
+  var ymax=null;
+  var chs = activeTrends();
+  for (var i = 0;i<chs.length;i++) {
+    var fs = signalbase.data.srates[chs[i]];
+    var dt = 1.0/fs/60.0;
+    var tmpy = signalbase.data.signals[chs[i]];
+    for (var j=xmin;j<xmax;j++) {
+      var y = tmpy[j];
+      if (ymin==null||y<ymin) ymin=y;
+      if (ymax==null||y>ymax) ymax=y;
+    }
+    ys.push(tmpy);
+  }
+  var rge = ymax-ymin;
+  ymin-=0.1*rge;
+  ymax+=0.1*rge;
+  plt.ymin=ymin;
+  plt.ymax=ymax;
+  var s = { width: 1, color: '#f00' };
+  var dx = 1;
+  var dy = 1;
+  var y_1 = 0;
+  var x_1 = 0;
+  for (var j=0;j<ys.length;j++) {
+    var data = ys[j];
+    var pts = [];
+    for (var i=xmin;i<xmax;i++) {
+      if (!isNaN(data[i])) {
+        var x = plt.pxmin+(plt.pxmax - plt.pxmin)*((i-xmin)/(xmax-xmin));
+        var y = plt.pymax-(plt.pymax - plt.pymin)*((data[i]-ymin)/(ymax-ymin));
+        if (i==0||Math.abs(y_1-y)>=dy||Math.abs(x_1-x)>=dx) {
+          pts.push([x,y]);
+          x_1 = x;
+          y_1 = y;
+        }
+      }
+    }
+    plt.draw.polyline(pts).fill('none').stroke(plt.linestyle[j%10]);
+  }
+}
+
+function trendsLabel (plt) {
+  return "Trends";
+}
+
+// find trend at pointer
+function trendsHoverSnap() {
+  var chs = activeTrends();
+  var plt = hoverPlot;
+  var rge = plt.ymax-plt.ymin;
+  var val = plt.ymin + hoverAtValue*rge;
+  var res = null;
+  var mindist = null;
+  for (var i=0;i<chs.length;i++) {
+    var lbl = signalbase.data.labels[chs[i]];
+    var fs = signalbase.data.srates[chs[i]];
+    var ofs = Math.round(hoverAt*fs);
+    var val2 = signalbase.data.signals[chs[i]][ofs];
+    var dist = Math.abs(val-val2)/rge;
+    if (mindist==null||dist<mindist) {
+      res = [lbl, hoverPlot.hhmmss(hoverAt),val2.toFixed(2),hoverPlot.linestyle[i%10].color];
+      mindist = dist;
+    }
+  }
+  return res;
+}
+
+function trendsHover() {
+  var xmax = hoverW;
+  var ymax = hoverH;
+  var data = trendsHoverSnap();
+  if (data!=null) {
+    hoverCtx.fillStyle = '#333';
+    hoverCtx.strokeStyle = '#ffffff';
+    hoverCtx.fillRect(0, 0, hoverW, hoverH);
+    hoverCtx.font = '12px mqDefault';
+    hoverCtx.fillStyle = '#fff';
+    hoverCtx.textAlign= 'center';
+    hoverCtx.textBaseline= 'middle';
+    hoverCtx.fillText(data[0],hoverW/2,0.15*hoverH);
+    hoverCtx.fillText(data[1],hoverW/2,0.9*hoverH);
+    hoverCtx.font = 'bold 30px mqDefault';
+    hoverCtx.fillStyle = data[3];
+    hoverCtx.fillText(data[2],hoverW/2,0.55*hoverH);
+  } else {
+    hoverCtx.clearRect(0, 0, hoverW, hoverH);
+  }
+}
+
+addPlotter({
+  id: 'plotter-trends',
+  mode: 'trends',
+  label: 'Trends',
+  default: true,
+  render: SVGRenderTrends,
+  renderLabel: trendsLabel,
+  renderHover: trendsHover
+});
+

@@ -1,0 +1,163 @@
+
+function cdsa2D (plt,sno,fft_size,nx,ofs,deltaofs,ny) {
+  if (nx<0) return [];
+  var inverted = plt.config['inverted'];
+  var res = [];
+  var fft_window='hanning';
+  var dbmax = 0;
+  var dbmin = -81;
+  var fft = new Fili.Fft(fft_size);
+  for (var i = 0;i<nx;i++) {
+    var data_in = signalbase.chunk(sno,ofs,fft_size);
+    var data_out = fft.magnitude(fft.forward(data_in,fft_window));
+    data_out = data_out.slice(0,ny);
+    res.push((inverted?data_out.reverse():data_out));
+    ofs+=deltaofs;
+  }
+  // normalize only when zoomed out
+  var res_max = null;
+  if (signalbase.zoomBegin==0&&signalbase.zoomEnd==signalbase.duration()) {
+    for (var i=0;i<res.length;++i) {
+      for (var j=0;j<res[0].length;++j) {
+        if (res_max==null||res[i][j]>res_max) res_max=res[i][j];
+      }
+    }
+    plt.res_max = res_max;
+  } else {
+    res_max = plt.res_max;
+  }
+  var scale = 1.0/res_max;
+  for (var i=0;i<res.length;++i) {
+    for (var j=0;j<res[0].length;++j) {
+      res[i][j]*=scale;
+    }
+  }
+  for (var i=0;i<res.length;++i) {
+      res[i]=fft.magToDb(res[i]);
+  }
+  for (var i=0;i<res.length;++i) {
+    for (var j=0;j<res[0].length;++j) {
+      var v = res[i][j];
+      if (v>dbmax) res[i][j]=dbmax;
+         else if (v<dbmin) res[i][j]=dbmin;
+    }
+  }
+  // final normalization 
+  for (var i=0;i<res.length;++i) {
+    for (var j=0;j<res[0].length;++j) {
+      res[i][j] = (res[i][j]-dbmin)/(dbmax-dbmin);
+    }
+  }
+  return res;
+}
+
+function cdsaLabel (plt) {
+  var inverted = plt.config['inverted'];
+  var sno = (inverted?signalbase.curChannelB:signalbase.curChannel);
+  return "CDSA " + signalbase.data.labels[sno];
+}
+
+
+function cdsaSnippet(x) {
+  var xsane = x;
+  if (Array.isArray(xsane)) xsane=xsane[0];
+  var dur = signalbase.duration();
+  if (dur==0) return [];
+  var ch = hoverInvert?signalbase.curChannelB:signalbase.curChannel;
+  var fs = signalbase.data.srates[ch];
+  var ofs = xsane-2.5;
+  if (ofs<0) ofs=0;
+  if (ofs>dur-5.0) ofs=dur-5.0;
+  var res = signalbase.chunk(ch,Math.floor(ofs*fs),Math.floor(5.0*fs));
+  return res;
+}
+
+function cdsaHover(fmax,inverted) {
+  return function () {
+    var xmax = hoverW;
+    var ymax = hoverH;
+    var data = cdsaSnippet(hoverAt);
+    var v = 0;
+    var dx = xmax / data.length;
+    hoverCtx.fillStyle = '#333';
+    hoverCtx.strokeStyle = '#ffffff';
+    hoverCtx.fillRect(0, 0, hoverW, hoverH);
+    var scale = -0.2;
+    v = scale * data[0] + hoverH/2.0;
+    hoverCtx.beginPath();
+    hoverCtx.moveTo(0, clamp(v, 0, ymax));
+    var _js1 = data.length;
+    for (var i = 1; i < _js1; i += 1) {
+      v = scale * data[i] + hoverH/2.0;
+      hoverCtx.lineTo(i * dx, clamp(v, 0, ymax));
+    }
+    hoverCtx.stroke();
+    var ch = hoverInvert?signalbase.curChannelB:signalbase.curChannel;
+    var fs = signalbase.data.srates[ch];
+    var ofs = Math.round(hoverAt*fs);
+    var val = signalbase.data.signals[ch][ofs]||0;
+    var str1 = hoverPlot.hhmmss(hoverAt) + ', ' + 
+               Math.round((inverted?1-hoverAtValue:hoverAtValue)*fmax) + 'Hz';
+    var str2 = val.toFixed(2) + 'uV';
+    hoverCtx.font = '12px mqDefault';
+    hoverCtx.fillStyle = '#fff';
+    hoverCtx.textAlign= 'center';
+    hoverCtx.textBaseline= 'middle';
+    hoverCtx.fillText(str2,hoverW/2,0.15*hoverH);
+    hoverCtx.fillText(str1,hoverW/2,0.9*hoverH);
+  }
+}
+
+addPlotter( {
+  id: 'plotter-cdsa40-1',
+  mode: 'cdsa40-1',
+  label: 'CDSA40 Hemisphere 1',
+  render: SVGRender2D,
+  default: true,
+  core2d: cdsa2D,
+  renderLabel: cdsaLabel,
+  renderHover: cdsaHover(40),
+  ylabelmin: "0Hz",
+  ylabelmax: "40Hz"
+});
+
+addPlotter( {
+  id: 'plotter-cdsa40-2',
+  mode: 'cdsa40-2',
+  label: 'CDSA40 Hemisphere 2',
+  render: SVGRender2D,
+  default: false,
+  inverted: true,
+  core2d: cdsa2D,
+  renderLabel: cdsaLabel,
+  renderHover: cdsaHover(40,true),
+  ylabelmin: "0Hz",
+  ylabelmax: "40Hz"
+});
+
+addPlotter( {
+  id: 'plotter-cdsa64-1',
+  mode: 'cdsa64-1',
+  label: 'CDSA64 Hemisphere 1',
+  render: function (plt) { SVGRender2D(plt,64); },
+  core2d: cdsa2D,
+  renderLabel: cdsaLabel,
+  renderHover: cdsaHover(64),
+  ylabelmin: "0Hz",
+  ylabelmax: "64Hz"
+});
+
+addPlotter( {
+  id: 'plotter-cdsa64-2',
+  mode: 'cdsa64-2',
+  label: 'CDSA64 Hemisphere 2',
+  render: function (plt) { SVGRender2D(plt,64); },
+  inverted: true,
+  core2d: cdsa2D,
+  renderLabel: cdsaLabel,
+  renderHover: cdsaHover(64,true),
+  ylabelmin: "0Hz",
+  ylabelmax: "64Hz"
+});
+
+// eof

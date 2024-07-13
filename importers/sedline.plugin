@@ -1,0 +1,14 @@
+
+function importSedLineEDF(fname,abdata) {
+  signalbase.append=false;
+  signalbase.loadEDFData(fname,abdata);
+}
+
+function importAppendSedLineEDF(fname,abdata) {
+  signalbase.append=true;
+  signalbase.loadEDFData(fname,abdata);
+}
+
+addImporter(["SedLine  EDF..", importSedLineEDF, ".edf"]);
+addImporter(["SedLine EDF Append..", importAppendSedLineEDF,".edf"]);
+
