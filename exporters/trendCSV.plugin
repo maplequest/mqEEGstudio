@@ -1,0 +1,28 @@
+
+function exportTrendsAsCSV() {
+  var trends = signalbase.trendChannels();
+  var n = trends.length;
+  var csv=[];
+  var row=["Time"];
+  for (var i=0;i<n;i++) {
+    var lbl = signalbase.data.labels[trends[i]];
+    row.push(lbl);   
+  }
+  csv.push(row);
+  var m =  signalbase.data.signals[trends[0]].length;
+  for (var j=0;j<m;j++) {
+    row = [j];
+    for (var i=0;i<n;i++) {
+      var val = signalbase.data.signals[trends[i]][j];
+      if (mqNaN(val)) val=0;
+      val = Math.round(val*100)/100.0;
+      row.push(val);
+    }
+    csv.push(row);
+  }
+  var fname = signalbase.data.filename.replace(/\.edf$/,"-trends.csv")||"trends.csv";
+  mqSaveAsCSV(fname,csv,",");
+}
+
+addExporter(["Trend CSV..", exportTrendsAsCSV]);
+

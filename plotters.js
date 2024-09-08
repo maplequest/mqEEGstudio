@@ -182,6 +182,12 @@ function SVGRender2D (plt,fmax) {
   }
   canvas.convertToBlob().then(function (blob) { return toDataURL(blob) }).then(function (img) {
     plt.draw.image(img).move(plt.pxmin,plt.pymin).attr('height',ch).attr('width',cw).attr('preserveAspectRatio','none');
+    // the image ends up the last element due to this async
+    // so we have to redo the marker lines here for them to show on top
+    var s = { width: 1, color: '#ccc' };
+    plt.hoverLine = plt.draw.line(plt.pxmin,plt.pymin,plt.pxmin,plt.pymax).stroke(s);
+    s = { width: 1, color: '#000' };
+    plt.markerLine = plt.draw.line(plt.pxmin,plt.pymin,plt.pxmin,plt.pymax).stroke(s);
   });
 
   // palette
@@ -244,6 +250,8 @@ class Plotter {
     this.dragBegin=0;
     this.dragEnd=0;
     this.dragBox=null;
+    this.hoverValid=false;
+    this.hoverTimeout=false;
     this.linestyle = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
     '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'].map(function (x) { 
        return { width: 2, color: x } });
@@ -291,9 +299,23 @@ class Plotter {
       for (var i=0;i<plots.length;i++) plots[i].mouseUp(evt.clientX,(i==0?true:false)); 
     }
     function downHandler (evt) {
+      //evt.preventDefault();
+      //if (mqNaN(evt.clientX)) return;
+      //for (var i=0;i<plots.length;i++) plots[i].mouseDown(evt.clientX); 
       evt.preventDefault();
-      if (mqNaN(evt.clientX)) return;
-      for (var i=0;i<plots.length;i++) plots[i].mouseDown(evt.clientX); 
+      var x = evt.clientX;
+      var y = evt.clientY;
+      if (mqNaN(x)||mqNaN(y)) return;
+      for (var i=0;i<plots.length;i++) {
+        var obj = mqElement(plots[i].config.id+'-svg');
+        if (obj) { 
+          var rect = obj.getBoundingClientRect();
+          var xr = x - rect.left;
+          var yr = y - rect.top;
+          plots[i].mouseAt(x,y,xr,yr);
+        }
+        plots[i].mouseDown(x);
+      }
     }
     obj.addEventListener('pointermove',moveHandler);
     obj.addEventListener('pointerdown',downHandler);
@@ -304,10 +326,27 @@ class Plotter {
     });
     obj.addEventListener('contextmenu',function (evt) {
        evt.preventDefault();
+       contextMenuUI();
     });
     mqSet(obj,'user-select','none');
     mqSet(obj,'touch-action','none');
     mqResize();
+  }
+  mouseAt(x,y,xr,yr) {
+    var that = this;
+    if (xr>this.pxmin&&xr<this.pxmax&&yr>this.pymin&&yr<this.pymax) {
+      this.hoverValid=true;
+      if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = setTimeout(function () { that.hoverValid=false; },5000);
+      hoverHide=0;
+      hoverPlot=this;
+      hoverX=x; hoverY=y;
+      var dur = signalbase.zoomEnd-signalbase.zoomBegin;
+      hoverAt=signalbase.zoomBegin + dur*(xr - this.pxmin)/(this.pxmax-this.pxmin);
+      hoverAtValue=(this.pymax-yr)/(this.pymax-this.pymin);
+    } else {
+      this.hoverValid=false;
+    }
   }
   mouseMove(x,y,xr,yr) {
     if (this.dragTS!=0) { 
@@ -323,14 +362,7 @@ class Plotter {
         this.dragBox.size(bw,bh).move(bx,by);
       }
     } else {
-      if (xr>this.pxmin&&xr<this.pxmax&&yr>this.pymin&&yr<this.pymax) {
-        hoverHide=0; 
-        hoverPlot=this;
-        hoverX=x; hoverY=y;
-        var dur = signalbase.zoomEnd-signalbase.zoomBegin;
-        hoverAt=signalbase.zoomBegin + dur*(xr - this.pxmin)/(this.pxmax-this.pxmin);
-        hoverAtValue=(this.pymax-yr)/(this.pymax-this.pymin);
-      } 
+      this.mouseAt(x,y,xr,yr);
     }
   }
   mouseUp(x,act) {
@@ -488,11 +520,33 @@ class Plotter {
       this.draw.plain(str).move(15,y).font(this.annotationFont);
     }
   }
+
+  plot_marker() {
+    var s = { width: 1, color: '#000' };
+    var x = this.pxmin;
+    this.markerLine = this.draw.line(this.pxmin,this.pymin,this.pxmin,this.pymax).stroke(s);
+    this.markerArrow = this.draw.circle(6).move(0,-12).fill("#fff").stroke(s);
+  }
+  plot_hover_line() {
+    var s = { width: 1, color: '#ccc' };
+    this.hoverLine = this.draw.line(this.pxmin,this.pymin,this.pxmin,this.pymax).stroke(s);
+  }
+  hover(pos) {
+    var x = (this.pxmax-this.pxmin)*pos+this.pxmin;
+    if (this.hoverLine) this.hoverLine.move(x,this.pymin);
+  }
+  mark (pos) {
+    var x = (this.pxmax-this.pxmin)*pos+this.pxmin;
+    if (this.markerLine) this.markerLine.move(x,this.pymin);
+    if (this.markerArrow) this.markerArrow.move(x-3,this.pymax);
+  }
+
   plot_internal () {
     if (this.needsinit) { this.needsinit=false; this.init(); }
-    this.populate_annotations();
     var id = this.id + '-svg';
     var obj = mqElement(id);
+    if (obj==null) return;
+    this.populate_annotations();
     this.w = parseInt(mqAttr(obj,'width'));
     this.h = parseInt(mqAttr(obj,'height'));
     this.pxmin = 30;
@@ -501,16 +555,12 @@ class Plotter {
     this.pymax = this.h-20;
     obj.innerHTML="";
     this.draw = SVG('#'+id);
-    this.plot_frame();
-    this.plot_annotations();
     var render = plotters[this.mode];
-    if (render!=null) render(this); 
-/*
-    var that = this;
-    setTimeout(function () {
-      that.dragBox = that.draw.rect(0,that.pymin+1,0,that.pymax).fill('#ccc').stroke({width: 2, color: '#fff'}).attr('fill-opacity','0.5'); 
-      },3000);
-*/ 
+    if (render!=null) render(this);
+    this.plot_hover_line();
+    this.plot_marker();
+    this.plot_annotations();
+    this.plot_frame();
     if (this.dragBox) this.dragBox.remove();
     this.dragBox=null;
     if (this.onafter) this.onafter();

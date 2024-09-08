@@ -9,6 +9,7 @@ var hoverAtTime;
 var hoverAtLast;
 var hoverX=0;
 var hoverY=0;
+var hoverYOffset=30;
 var hoverInvert=null;
 var hoverPlot=null;
 var hoverAnnotation = null;
@@ -36,22 +37,35 @@ function hoverFindAnnotation ( ) {
   }
 }
 
+function hoverValid() {
+  var valid=false;
+  for (var i=0;i<plots.length;i++) if (plots[i].hoverValid) valid=true;
+  return valid;
+}
+
 function hoverLoop() {
-   if (hoverHide!=0||hoverAt === null) { 
+   if (!hoverValid()||hoverAt === null) { 
     mqSet('hover-plot','display','none');
+    for (var i=0;i<plots.length;i++) plots[i].hover(0);
    } else { 
      if (hoverAt!=hoverAtLast||hoverAtValue!=hoverAtValueLast) { 
        if (hoverPlot) {
-         var str = mqElement('hover-label').value;
-         hoverFindAnnotation();
-         mqElement('hover-label').value = (hoverAnnotation!=null?signalbase.data.annotations[hoverAnnotation][2]:"");
+         if (mqElement('hover-label')) {
+           hoverFindAnnotation();
+           mqElement('hover-label').value = (hoverAnnotation!=null?signalbase.data.annotations[hoverAnnotation][2]:"");
+           mqElement('hover-label').focus(); 
+           if (hoverAt!=hoverAtLast) mqElement('hover-label').select();
+         }
          var render = hoverPlot.config['renderHover'];
          if (render) render();
          mqSet('hover-plot','display','block');
          mqSet('hover-plot','left', (hoverX - hoverW/2.0) + 'px');
-         mqSet('hover-plot','top', (hoverY + 30) + 'px');
-         mqElement('hover-label').focus(); 
-         if (hoverAt!=hoverAtLast) mqElement('hover-label').select();
+         mqSet('hover-plot','top', (hoverY + hoverYOffset) + 'px');
+         var pos=0;
+         if (hoverAt<signalbase.zoomBegin) pos=0;
+           else if (hoverAt>signalbase.zoomEnd) pos=1;
+             else pos = (hoverAt - signalbase.zoomBegin)/(signalbase.zoomEnd-signalbase.zoomBegin);
+         for (var i=0;i<plots.length;i++) plots[i].hover(pos);
          hoverAtLast = hoverAt; 
          hoverAtValueLast = hoverAtValue; 
        }

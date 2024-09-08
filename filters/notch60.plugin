@@ -2,7 +2,7 @@
 addFilter(['Notch 60Hz..',
   function () {
     var backup = JSON.stringify(signalbase.data);
-    var wnd = mqWindow({ id: 'notch-60', title: '60Hz Notch Filter', width: '264', height: '96px', });
+    var wnd = mqWindow({ id: 'notch-60', title: '60Hz Notch Filter', width: '264px', height: '96px', });
     mqAppend(wnd,mqLabel({ x: '8px', y: '32px', label: 'Quality Factor', align: 'right'}));
     mqAppend(wnd,mqInput({
       id: 'notch-60-q',
@@ -10,7 +10,7 @@ addFilter(['Notch 60Hz..',
     }));
     mqAppend(wnd,mqButton({
       id: 'notch-60-apply',
-      x: '136', y: '64px', label: 'Apply',
+      x: '136px', y: '64px', label: 'Apply',
       onclick: function () {
          var q = parseFloat(mqGet('notch-60-q','innerText'));
          if (q!=null&&!isNaN(q))  {

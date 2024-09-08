@@ -218,6 +218,7 @@ function boot() {
   initAlgorithms();
   initTools();
   initExporters();
+  initContextMenu();
   initPlugins();
 
   initSplash();

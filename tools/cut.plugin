@@ -21,7 +21,7 @@ function genParamDialog(cfg) {
   }
   mqAppend(wnd,mqButton({
       id: cfg.id+'-apply',
-      x: '136', y: y+'px', label: 'Apply',
+      x: '136px', y: y+'px', label: 'Apply',
       onclick: cfg.onapply
   }));
   mqAppend(wnd,mqButton({
