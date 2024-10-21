@@ -6,7 +6,7 @@ function activeTrends() {
   var chnames = [];
   var entries = desktop.menubar.getSubmenus('mb-trends');
   for (var i=2;i<entries.length;i++) {
-    if (entries[i][2]) chnames.push(entries[i][0]);
+    if (entries[i].selected) chnames.push(entries[i].label);
   }
   var tmp = signalbase.trendChannels();
   for (var i=0;i<tmp.length;i++) {

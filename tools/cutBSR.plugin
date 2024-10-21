@@ -1,0 +1,77 @@
+
+function genParamDialog(cfg) {
+  var w = 264;
+  var h = 32*cfg.params.length + 2*32;
+  var wnd = mqWindow({ id: cfg.id, title: cfg.title, width: w+'px', height: h+'px' });
+  var y = 32;
+  for (var i=0;i<cfg.params.length;i++) {
+     var param = cfg.params[i];
+     mqAppend(wnd,mqLabel({ x: '8px', y: y+'px', label: param.label, align: 'right'}));
+     mqAppend(wnd,mqInput({ id: param.id, x: '136px', y: y+'px', value: param.value }));
+     y+=32;
+  }
+  mqAppend(wnd,mqButton({
+      id: cfg.id+'-apply',
+      x: '136px', y: y+'px', label: 'Apply',
+      onclick: cfg.onapply
+  }));
+  mqAppend(wnd,mqButton({
+      id: cfg.id+'-reset',
+      x: '8px', y: y+'px', label: 'Reset',
+      onclick: cfg.onreset
+  }));
+}
+
+function cutBSR (thres,pad) {
+   var chs = [signalbase.curChannel,signalbase.curChannelB];
+   var fs = Math.floor(signalbase.data.srates[chs[0]]);
+   filterEEGFast(function (fs) { return new mqDCBlock( { fs: fs, fc: 0.1 }); });
+   var eeg1 = signalbase.data.signals[chs[0]].map(x=>(mqNaN(x)?0:x));
+   var eeg2 = signalbase.data.signals[chs[1]].map(x=>(mqNaN(x)?0:x));
+   var cuts = [];
+   var bsr = 0;
+   for (var i=0;i<eeg1.length;i++) { 
+     if (Math.abs(eeg1[i])<thres&&Math.abs(eeg2[i])<thres) {
+       bsr++;
+     } else {
+       if (bsr>fs) {
+         if (cuts.length==0||i-cuts[cuts.length-1]>pad*fs) cuts.push(i);
+       } 
+       bsr=0;
+     }
+   }
+   cuts=cuts.reverse();
+   for (var i=0;i<cuts.length;i++) {
+     var cut = cuts[i]/fs;
+     var bgn = Math.max(0,cut-pad);
+     var end = Math.min(eeg1.length/fs,cut+pad);
+     signalbase.cut(bgn,end);
+   }
+}
+
+addTool([ 'Cut Suppressed..',
+  function () {
+    var id = 'bsr-cutter';
+    if (mqElement(id)) return; 
+    var backup = JSON.stringify(signalbase.data);
+    genParamDialog({
+      id: id,
+      title: 'Cut Suppressed',
+      params: [
+         { label: "Threshold [uV]", id: id+"-threshold", value: "5" },
+         { label: "Padding [s]", id: id+"-pad", value: "10" }
+      ],
+      onreset: function () { signalbase.data = JSON.parse(backup); refreshPlots(); },
+      onapply: function () {
+        var thres = parseFloat(mqGet(id+'-threshold','innerText'));
+        var pad = parseFloat(mqGet(id+'-pad','innerText'));
+        if (!mqNaN(thres)&&!mqNaN(pad)) { 
+          cutBSR(thres,pad);
+          refreshPlots();
+        }
+      }
+    });
+  }
+]);
+
+

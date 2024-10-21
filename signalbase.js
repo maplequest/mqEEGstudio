@@ -57,13 +57,15 @@ class SignalBase {
     return res;
   }
   setCurChannel(i) {
+   // console.log('curChannel=' + i);
     this.curChannel = i;
     this.curChannelB = this.mirrorChannel(i);
   }
   isEEG(i) {
     var res = false;
     var sr = this.data.srates[i];
-    if (sr<128) return false;
+    //if (sr<128) return false;
+    if (sr<100) return false;
     var lbl = this.data.labels[i].toUpperCase();
     for (var i=0;i<this.eegSitesBipolar.length;i++) {
       if (lbl.includes(this.eegSitesBipolar[i])) { res=true; break; }
@@ -491,6 +493,7 @@ class SignalBase {
       console.error("Signal mismatch, cannot append EDF.");
       return;
     }
+  
     idx+=4;
     that.data.labels=[];
     for (var i=0;i<n;i++) {
@@ -545,7 +548,12 @@ class SignalBase {
       idx+=8;
     }
     idx+=n*32; // reserved
-    var s16data = new Int16Array(data.slice(idx,data.length));
+    if (rn==-1) {
+      // SedLine can output invalid EDFs with a data record count of -1, try to fix it 
+      // console.log('Invalid data record count (-1), fixing..');
+      rn = Math.round((data.byteLength-idx)/(2*(rstride-1)));
+    }
+    var s16data = new Int16Array(data.slice(idx));
     for (var sno=0;sno<n;sno++) {
       if (!that.append) that.data.signals[sno]=[];
       var len = rn * rsamples[sno];
@@ -583,7 +591,7 @@ class SignalBase {
           idx = rno*rstride;
           for (var i=0;i<sno;i++) { idx+=rsamples[i]; }
           idx+=sidx-rno*rsamples[sno];
-          var sample = s16data[idx];
+          var sample = s16data[idx]||0;
           sample += -1.0*digmin[sno];
           sample *= (physmax[sno]-physmin[sno])/(digmax[sno]-digmin[sno]);
           sample += 1.0*physmin[sno];
@@ -663,7 +671,7 @@ class SignalBase {
     }
     return words;
   }
-  saveEDF() {
+  saveEDFData() {
     var aidx = -1;
     this.record=true;
     if (this.data.annotations.length>0) {
@@ -753,9 +761,13 @@ class SignalBase {
         }
       }
     }
-    this.saveFile(abdata,this.data.filename);
+  //  this.saveFile(abdata,this.data.filename);
     this.record=false;
+    return abdata;
+  }
+  saveEDF() {
+    var abdata = this.saveEDFData();
+    this.saveFile(abdata,this.data.filename);
   }
 }
-
 

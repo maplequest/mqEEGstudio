@@ -23,28 +23,28 @@ var menu =  [
       "id": "mb-waveforms",
       "label": "Waveforms",
       "entries": [
-        [ "Select All", function () {
+        { label: "Select All", hook: function () {
              desktop.menubar.checkSubmenus('mb-waveforms',function (i) { return (i>1?true:false); });
              refreshPlots(); }
-        ],
-        [ "Select None", function () {
+        },
+        { label: "Select None", hook: function () {
             desktop.menubar.checkSubmenus('mb-waveforms',function (i) { return false; });
             refreshPlots(); }
-        ]
+        }
       ]
     },
     {
       "id": "mb-trends",
       "label": "Trends",
       "entries": [
-        [ "Select All", function () { 
+        { label: "Select All", hook: function () { 
              desktop.menubar.checkSubmenus('mb-trends',function (i) { return (i>1?true:false); });
              refreshPlots(); } 
-        ],
-        [ "Select None", function () { 
+        },
+        { label: "Select None", hook: function () { 
             desktop.menubar.checkSubmenus('mb-trends',function (i) { return false; });
             refreshPlots(); } 
-        ]
+        }
       ]
     }, 
        {
@@ -75,19 +75,27 @@ var menu =  [
       "id": "mb-plugins",
       "label": "Plugins",
       "entries": [
-        [ "Plugin Manager..", pluginManagerLauncher ],
-        [ "Install custom plugin..", function () { mqLoadJS("*.plugin",addPlugin); } ],
+        { label: "Plugin Manager..", hook: pluginManagerLauncher },
+        { label: "Install custom plugin..", hook: function () { 
+            mqLoadJS("*.plugin", function (name, code) {
+              addPlugin({
+                name: name, 
+                data: btoa(code), 
+                metadata: btoa('Custom plugin'), 
+                level: 0, 
+                version: "0.0.0"
+              });
+            }); } },
       ]
     }, {
       "id": "mb-help",
       "label": "Help",
       "entries": [
-      [ "MapleQuest YouTube..", function () { launch('https://www.youtube.com/@MapleQuestLabs'); } ],
-      [ "MapleQuest GitHub..", function () { launch('https://github.com/maplequest?tab=repositories'); } ],
-      [ "About " + mqTitle,  function () { initSplash(true); } ]
-     //   [ "GitHub Source & Docs..", function () { window.open('https://github.com/maplequest/mqEEGstudio'); }],
-     //   [ "API Docs..", function () { window.open('https://docs.maplequestlabs.com'); }],
-     //   [ "About EEGStudio..", helpAbout],
+       { label: "MapleQuest YouTube..", hook: function () { launch('https://www.youtube.com/@MapleQuestLabs'); } },
+       { label: "MapleQuest GitHub..", hook: function () { launch('https://github.com/maplequest?tab=repositories'); } },
+       { label: "MapleQuest Terms of Use..", hook: mqTermsOfUseUI },
+       { label: "MapleQuest Privacy Policy..", hook: mqPrivacyPolicyUI },
+       { label: "About " + mqTitle + '..', hook: function () { mqSplashUI({border: true}); } },
       ]
     }, 
   
@@ -135,6 +143,55 @@ function initDesktop() {
 
 var signalbase;
 
+var cdsaDbMin = -80;
+var cdsaDbMax = 0;
+
+function updateCDSAconfig () {
+  var v1 = parseFloat(mqElement('cdsa-config-min').innerText);
+  var v2 = parseFloat(mqElement('cdsa-config-max').innerText);
+  if (mqNaN(v1)||mqNaN(v2)||v1>=v2||v1<-120||v2>12) {
+    mqDialogOK({ title: "Invalid Range", label: "Invalid CDSA scale range" });
+  } else {
+    cdsaDbMin=v1;
+    cdsaDbMax=v2;
+    refreshPlots();
+   // mqDelete('cdsa-config-window');
+  }
+}
+
+function configCDSA () {
+  mqParamDialog({
+    id: 'cdsa-config',
+    title: 'CDSA Scale Config',
+    params: [
+      { 
+        subid: '-max',
+        label: 'Scale Max [dB]',
+        value: cdsaDbMax
+      },
+      { 
+        subid: '-min',
+        label: 'Scale Min [dB]',
+        value: cdsaDbMin
+      } 
+    ],
+    rightbutton: {
+      label: 'Apply',
+      onclick: updateCDSAconfig
+    },
+    leftbutton: {
+      label: 'Default',
+      onclick: function () { 
+        cdsaDbMin=-80; 
+        cdsaDbMax=0;
+        mqElement('cdsa-config-min').innerText = cdsaDbMin+'';
+        mqElement('cdsa-config-max').innerText = cdsaDbMax+'';
+        refreshPlots();
+      } 
+    }
+  });
+}
+     
 function initSignalBase () {
   function makeChannelSetter(idx,lbl) {
     return function () {
@@ -161,32 +218,33 @@ function initSignalBase () {
       var tmp = [];
       for (var i=0;i<eegs.length;i++) {
         var lbl = signalbase.data.labels[eegs[i]];
-        tmp.push( [ lbl, makeChannelSetter(eegs[i],lbl),(i==0?true:false) ]);
+        tmp.push( { label: lbl, hook: makeChannelSetter(eegs[i],lbl), selected: (i==0?true:false) });
       }
       tmp.sort(function (a,b) {
-        return a[0].toLowerCase().localeCompare(b[0].toLowerCase());
+        return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
       });
-      desktop.menubar.setSubmenus('mb-channels',tmp);
+      desktop.menubar.setSubmenus('mb-channels',
+        [{ label: 'Config..', hook: configCDSA  }].concat(tmp));
       signalbase.setCurChannel( eegs[0] );
       var trends = signalbase.trendChannels();
       tmp = desktop.menubar.getSubmenus('mb-trends').slice(0,2);
       var tmp2 = [];
       for (var i=0;i<trends.length;i++) {
         var lbl = signalbase.data.labels[trends[i]];
-        tmp2.push([lbl,makeTrendSetter(lbl),true]);
+        tmp2.push({ label: lbl, hook: makeTrendSetter(lbl),selected: true });
       }
       desktop.menubar.setSubmenus('mb-trends',tmp.concat(tmp2.sort(function (a,b) {
-        return a[0].toLowerCase().localeCompare(b[0].toLowerCase()); })));
+        return a.label.toLowerCase().localeCompare(b.label.toLowerCase()); })));
 
       var waveforms = signalbase.waveformChannels();
       tmp = desktop.menubar.getSubmenus('mb-waveforms').slice(0,2);
       var tmp2 = [];
       for (var i=0;i<waveforms.length;i++) {
         var lbl = signalbase.data.labels[waveforms[i]];
-        tmp2.push([lbl,makeWaveformSetter(lbl),true]);
+        tmp2.push({ label: lbl, hook: makeWaveformSetter(lbl), selected: true } );
       }
       desktop.menubar.setSubmenus('mb-waveforms',tmp.concat(tmp2.sort(function (a,b) {
-        return a[0].toLowerCase().localeCompare(b[0].toLowerCase()); })));
+        return a.label.toLowerCase().localeCompare(b.label.toLowerCase()); })));
 
       desktop.statusbar.set(1,signalbase.data.filename);
       desktop.statusbar.set(2,signalbase.data.startdate + ' ' + 
@@ -221,7 +279,7 @@ function boot() {
   initContextMenu();
   initPlugins();
 
-  initSplash();
+  mqSplashUI();
   setTimeout(function () {
     mqAjaxBinary(mqVersion+'/demo.edf', 
       function (data) { signalbase.loadEDFData("demo.edf",data); }, false, false);

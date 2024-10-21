@@ -3,39 +3,21 @@ var plugins = [];
 
 function removePlugin(name) {
   var res = [];
-  for (var i=0;i<plugins.length;i++) {
-    if (plugins[i]['name']!=name) res.push({
-      name: plugins[i].name,
-      code: plugins[i].code
-    });
-  }
+  for (var i=0;i<plugins.length;i++) 
+    if (plugins[i]['name']!=name) res.push(plugins[i]);
   mqStorageSetJSON('eegstudio-plugins',res);
   plugins=res;
 }
 
-function removePluginOtherVersions(name) {
-  if (!name.includes('-mq.plugin')) return;
-  var filter = name.split('-').slice(0,2).join('-')+'-*.*.*-mq.plugin';
-  var rgx = new RegExp(filter);
-  var res = [];
-  for (var i=0;i<plugins.length;i++) {
-    if (plugins[i]['name'].match(rgx)==null) res.push({
-      name: plugins[i].name,
-      code: plugins[i].code
-    }); // else console.log('Removed ' + plugins[i]['name']);
-  }
-  mqStorageSetJSON('eegstudio-plugins',res);
-  plugins=res;
-}
-
-function addPlugin(name,code) {
-  removePluginOtherVersions(name);
-  plugins.push({name: name, code: code});
+function addPlugin(plg, silent) {
+  var name = plg.name;
+  removePlugin(name);
+  plugins.push(plg);
   mqStorageSetJSON('eegstudio-plugins',plugins);
-  mqDialogOK({
+  if (!silent) mqDialogOK({
      title: 'Plugin Installed',
      label: name + ' has been installed. You can uninstall it later from the Plugin Manager.',
-    });
+  });
 }
 
 function removePluginAsk(name) {
@@ -48,16 +30,11 @@ function removePluginAsk(name) {
 
 function initPlugins() {
   plugins = mqStorageGetJSON('eegstudio-plugins',[]);
-  for (var i=0;i<plugins.length;i++) {
-    try { eval(plugins[i].code); } catch (e) { console.log(e.message); } 
-  }
+  initPluginManager(); 
 }
 
 function clearPlugins() {
   mqStorageSetJSON('eegstudio-plugins',[]);
   plugins=[];
-}
-
-function clearPluginsAsk() {
 }
 

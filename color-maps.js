@@ -31,7 +31,7 @@ function setColorMap(name) {
 function addColorMap (cm) {
   colorMaps.push(cm);
   desktop.menubar.deleteSubmenu('mb-colormaps',cm[0]);
-  desktop.menubar.addSubmenu('mb-colormaps', [cm[0], function () { setColorMap(cm[0]); }]);
+  desktop.menubar.addSubmenu('mb-colormaps', { label: cm[0], hook: function () { setColorMap(cm[0]); } });
   desktop.menubar.sortSubmenu('mb-colormaps');
   var idx = colorMaps.length - 1;
   if (cm[0]==curColorMap) {

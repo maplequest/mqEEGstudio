@@ -337,7 +337,7 @@ class Plotter {
     if (xr>this.pxmin&&xr<this.pxmax&&yr>this.pymin&&yr<this.pymax) {
       this.hoverValid=true;
       if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
-      this.hoverTimeout = setTimeout(function () { that.hoverValid=false; },5000);
+      this.hoverTimeout = setTimeout(function () { that.hoverValid=false; },10000);
       hoverHide=0;
       hoverPlot=this;
       hoverX=x; hoverY=y;
@@ -575,7 +575,7 @@ class Plotter {
 function makePlotterCB(cfg) {
   return function () {
     var lbl = cfg.label;
-    var sel = desktop.menubar.getSubmenu('mb-plotters',lbl)[2]||false;
+    var sel = desktop.menubar.getSubmenu('mb-plotters',lbl).selected||false;
     if (sel) {
       var match = false;
       for (var i=0;i<plots.length;i++) {
@@ -601,9 +601,9 @@ function addPlotter(cfg) {
       exists=true;
     }
   }
-  if (!exists) entries.push([cfg.label, makePlotterCB(cfg),cfg.default?true:false]);
+  if (!exists) entries.push({ label: cfg.label, hook: makePlotterCB(cfg), selected: cfg.default?true:false});
   entries.sort(function (a,b) {
-    return a[0].toLowerCase().localeCompare(b[0].toLowerCase());
+    return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
   });
   desktop.menubar.setSubmenus('mb-plotters',entries);
   if (cfg.default) { addPlot(cfg); }

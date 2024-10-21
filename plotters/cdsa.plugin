@@ -4,8 +4,10 @@ function cdsa2D (plt,sno,fft_size,nx,ofs,deltaofs,ny) {
   var inverted = plt.config['inverted'];
   var res = [];
   var fft_window='hanning';
-  var dbmax = 0;
-  var dbmin = -81;
+ // var dbmax = 0;
+ // var dbmin = -81;
+  var dbmax = cdsaDbMax;
+  var dbmin = cdsaDbMin; 
   var fft = new Fili.Fft(fft_size);
   for (var i = 0;i<nx;i++) {
     var data_in = signalbase.chunk(sno,ofs,fft_size);

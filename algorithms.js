@@ -13,12 +13,12 @@ function refreshTrends (newtrends) {
   var len = desktop.menubar.getSubmenus('mb-trends').length-2;
   for (var i=len;i<trends.length;i++) {
     var lbl = signalbase.data.labels[trends[i]];
-    desktop.menubar.addSubmenu('mb-trends',[lbl,makeTrendSetter(lbl),true]);
+    desktop.menubar.addSubmenu('mb-trends',{label: lbl, hook: makeTrendSetter(lbl), selected: true});
   }
   var subs = desktop.menubar.getSubmenus('mb-trends');
   desktop.menubar.setSubmenus('mb-trends',[subs[0],subs[1]].concat(
     subs.slice(2).sort(function(a,b) {
-      return a[0].toLowerCase().localeCompare(b[0].toLowerCase());
+      return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
     })));
   if (newtrends) {
     for (var i=0;i<newtrends.length;i++) {
@@ -27,35 +27,6 @@ function refreshTrends (newtrends) {
     refreshPlots();
   }
 }
-
-/*
-function applyAlgorithm(idx) {
-  function makeTrendSetter(lbl) {
-    return function () {
-      desktop.menubar.toggleSubmenu('mb-trends',lbl);
-      refreshPlots();
-    }
-  }
-  var newtrends = algorithms[idx][1]();
-  var trends = signalbase.trendChannels();
-  var len = desktop.menubar.getSubmenus('mb-trends').length-2;
-  for (var i=len;i<trends.length;i++) {
-    var lbl = signalbase.data.labels[trends[i]];
-    desktop.menubar.addSubmenu('mb-trends',[lbl,makeTrendSetter(lbl),true]);
-  }
-  var subs = desktop.menubar.getSubmenus('mb-trends');
-  desktop.menubar.setSubmenus('mb-trends',[subs[0],subs[1]].concat(
-    subs.slice(2).sort(function(a,b) {
-      return a[0].toLowerCase().localeCompare(b[0].toLowerCase());
-    })));
-  if (newtrends) {
-    for (var i=0;i<newtrends.length;i++) {
-      desktop.menubar.checkSubmenu('mb-trends',newtrends[i]);
-    }
-    refreshPlots();
-  }
-}
-*/
 
 function applyAlgorithm(idx) {
   var newtrends = algorithms[idx][1]();
@@ -72,7 +43,7 @@ function addAlgorithm(algo) {
   algorithms.push(algo);
   var idx = algorithms.length - 1;
   desktop.menubar.deleteSubmenu('mb-algorithms',algo[0]);
-  desktop.menubar.addSubmenu('mb-algorithms',[algo[0], makeAlgorithmCB(idx)]);
+  desktop.menubar.addSubmenu('mb-algorithms',{ label: algo[0], hook: makeAlgorithmCB(idx) });
   desktop.menubar.sortSubmenu('mb-algorithms');
 }
 

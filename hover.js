@@ -105,6 +105,7 @@ function initHover() {
     "id": "hover-label",
     "position": "absolute",
     "top": "-2px",
+    "left": "-1px",
     "font-size": "14px", 
     "font-color": "black",
     "text-align": "center",
@@ -113,7 +114,8 @@ function initHover() {
     "outline": "0",
     "border": "0",
   });
-  mqStyle(hoverInput,'width','100%');
+  mqStyle(hoverInput,'width','calc(100% - 2px)');
+  mqAttr(hoverInput,'autocomplete','off');
   mqAppend(hoverForm,hoverInput);
   mqAppend(hover,hoverCanvas);
   mqAppend(hover,hoverForm);

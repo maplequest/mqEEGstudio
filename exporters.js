@@ -13,7 +13,7 @@ function addExporter(exporter) {
   exporters.push(exporter);
   var idx = exporters.length - 1;
   desktop.menubar.deleteSubmenu('mb-export',exporter[0]);
-  desktop.menubar.addSubmenu('mb-export',[exporter[0], makeExporterCB(idx)]);
+  desktop.menubar.addSubmenu('mb-export', { label: exporter[0], hook: makeExporterCB(idx)} );
   desktop.menubar.sortSubmenu('mb-export');
 }
 

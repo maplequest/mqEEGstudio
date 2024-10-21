@@ -14,7 +14,7 @@ function addTool(flt) {
   tools.push(flt);
   var idx = tools.length - 1;
   desktop.menubar.deleteSubmenu('mb-tools',flt[0]);
-  desktop.menubar.addSubmenu('mb-tools',[flt[0], makeToolCB(idx)]);
+  desktop.menubar.addSubmenu('mb-tools',{ label: flt[0], hook: makeToolCB(idx) });
   desktop.menubar.sortSubmenu('mb-tools');
 }
 

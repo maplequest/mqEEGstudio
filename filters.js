@@ -15,7 +15,7 @@ function filterDialog(cfg) {
   }
   mqAppend(wnd,mqButton({
       id: cfg.id+'-apply',
-      x: '136', y: y+'px', label: 'Apply',
+      x: '136px', y: y+'px', label: 'Apply',
       onclick: cfg.onapply
   }));
   mqAppend(wnd,mqButton({
@@ -54,7 +54,7 @@ function addFilter(flt) {
   filters.push(flt);
   var idx = filters.length - 1;
   desktop.menubar.deleteSubmenu('mb-filters',flt[0]);
-  desktop.menubar.addSubmenu('mb-filters',[flt[0], makeFilterCB(idx)]);
+  desktop.menubar.addSubmenu('mb-filters',{ label: flt[0], hook: makeFilterCB(idx) });
   desktop.menubar.sortSubmenu('mb-filters');
 }
 
